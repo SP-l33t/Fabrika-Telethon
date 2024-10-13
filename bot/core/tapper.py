@@ -30,6 +30,10 @@ def convert_to_unix(time_stamp: str):
         return time_stamp
 
 
+def sanitize_string(input_str: str):
+    return re.sub(r'[<>]', '', input_str)
+
+
 class Tapper:
     def __init__(self, tg_client: TelegramClient):
         self.tg_client = tg_client
@@ -172,11 +176,7 @@ class Tapper:
                 self.refresh_token["exp"] = int(time()) + self.refresh_token["exp"] / 1000
             return True
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to refresh token: {err_text}"))
+            logger.warning(self.log_message(f"Failed to refresh token: {sanitize_string(await response.text())}"))
             return False
 
     async def get_user_info(self, http_client: aiohttp.ClientSession):
@@ -187,11 +187,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to get user info: {err_text}"))
+            logger.warning(self.log_message(f"Failed to get user info: {sanitize_string(await response.text())}"))
             return None
 
     async def init_user_account(self, http_client: aiohttp.ClientSession):
@@ -228,11 +224,7 @@ class Tapper:
             logger.info(self.log_message("Skipped onboarding"))
             return True
 
-        try:
-            err_text = await response.json()
-        except Exception as e:
-            err_text = f"{response.status}: {type(e).__name__}"
-        logger.error(self.log_message(f"Unknown error while trying to skip onboarding... {err_text}"))
+        logger.error(self.log_message(f"Unknown error while trying to skip onboarding... {sanitize_string(await response.text())}"))
         return False
 
     async def join_squad(self, http_client: aiohttp.ClientSession):
@@ -248,11 +240,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to join squad: {err_text}"))
+            logger.warning(self.log_message(f"Failed to join squad: {sanitize_string(await response.text())}"))
 
     async def claim_daily_reward(self, http_client: aiohttp.ClientSession):
         response = await http_client.post(f"{API_ENDPOINT}/daily-rewards/receiving")
@@ -276,11 +264,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to complete task {task_des}: {err_text}"))
+            logger.warning(self.log_message(f"Failed to complete task {task_des}: {sanitize_string(await response.text())}"))
 
     async def get_scores(self, http_client: aiohttp.ClientSession):
         response = await http_client.get(f"{API_ENDPOINT}/scores")
@@ -302,11 +286,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to get factory info: {err_text}"))
+            logger.warning(self.log_message(f"Failed to get factory info: {sanitize_string(await response.text())}"))
             return None
 
     async def get_workers_status(self, http_client: aiohttp.ClientSession):
@@ -325,11 +305,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
 
-        try:
-            err_text = await response.json()
-        except Exception as e:
-            err_text = f"{response.status}: {type(e).__name__}"
-        logger.warning(self.log_message(f"Failed to fetch tasks: {err_text}"))
+        logger.warning(self.log_message(f"Failed to fetch tasks: {sanitize_string(await response.text())}"))
         return []
 
     async def tap(self, http_client: aiohttp.ClientSession, tap_count: int):
@@ -346,12 +322,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            err_text = None
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to tap: {err_text}"))
+            logger.warning(self.log_message(f"Failed to tap: {sanitize_string(await response.text())}"))
 
     async def boost_energy(self, http_client: aiohttp.ClientSession):
         response = await http_client.post(f"{API_ENDPOINT}/energies/recovery")
@@ -365,12 +336,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            err_text = None
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to boost energy: {err_text}"))
+            logger.warning(self.log_message(f"Failed to boost energy: {sanitize_string(await response.text())}"))
         return False
 
     @staticmethod
@@ -384,11 +350,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.info(self.log_message(f"Failed to hire worker {worker_id}: {err_text}"))
+            logger.info(self.log_message(f"Failed to hire worker {worker_id}: {sanitize_string(await response.text())}"))
             return False
 
     async def buy_workplace(self, http_client: aiohttp.ClientSession):
@@ -430,7 +392,7 @@ class Tapper:
                 elif worker.get('isProtected') is False:
                     if await self.hire_worker(http_client, worker['id']):
                         self.workers += 1
-                        logger.success(self.log_message(f"Successfully hired new worker: {worker['nickname']}"))
+                        logger.success(self.log_message(f"Successfully hired new worker: {sanitize_string(worker['nickname'])}"))
                         await self.get_scores(http_client)
                         return
 
@@ -453,11 +415,7 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
         else:
-            try:
-                err_text = await response.json()
-            except Exception as e:
-                err_text = f"{response.status}: {type(e).__name__}"
-            logger.warning(self.log_message(f"Failed to send worker to work: {err_text}"))
+            logger.warning(self.log_message(f"Failed to send worker to work: {sanitize_string(await response.text())}"))
             return False
 
     async def run(self) -> None:
