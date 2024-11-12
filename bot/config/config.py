@@ -23,8 +23,10 @@ class Settings(BaseSettings):
     AUTO_MANAGE_FACTORY: bool = True
     UPGRADE_WORKPLACES: bool = True
     AUTO_BUY_WORKER: bool = True
+    ATTEMPTS_TO_BUY_WORKER: int = 10
+    WORKER_MAX_PRICE: int = 1500
 
-    RANDOM_SESSION_START_DELAY: int = 30
+    SESSION_START_DELAY: int = 360
 
     SESSIONS_PER_PROXY: int = 1
     USE_PROXY_FROM_FILE: bool = True

@@ -7,7 +7,7 @@ from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
 from datetime import datetime, timezone
-from random import uniform, randint, shuffle
+from random import uniform, randint, shuffle, choice
 from time import time
 
 from bot.utils.universal_telegram_client import UniversalTelegramClient
@@ -301,9 +301,10 @@ class Tapper:
             logger.info(self.log_message(f"Failed to hire worker {worker_id}: {sanitize_string(await response.text())}"))
             return False
 
-    async def buy_workplace(self, http_client: CloudflareScraper):
-        payload = {"quantity": 1}
-        response = await http_client.post("https://api.ffabrika.com/api/v1/tools/market/5/purchase", json=payload)
+    async def buy_tool(self, http_client: CloudflareScraper, tool_id, quantity=1):
+        payload = {"quantity": quantity}
+        response = await http_client.post(f"https://api.ffabrika.com/api/v1/tools/market/{tool_id}/purchase",
+                                          json=payload)
         if response.status in range(200, 300):
             logger.success(self.log_message(f"Successfully bought a new workplace!"))
         elif response.status == 401:
@@ -322,9 +323,12 @@ class Tapper:
         elif response.status == 401:
             raise Unauthorized('Session expired')
 
-    async def get_workers_market_data(self, http_client: CloudflareScraper):
+    async def get_workers_market_data(self, http_client: CloudflareScraper, last_id=0, min_price=0, max_price=0):
         await asyncio.sleep(2, 5)
-        response = await http_client.get(f"{API_ENDPOINT}/market/workers?page=1&limit=20")
+        last_id = f"&lastId={last_id}" if last_id else ""
+        min_price = f"&min_price={min_price}" if min_price else ""
+        max_price = f"&max_price={max_price}" if max_price else ""
+        response = await http_client.get(f"{API_ENDPOINT}/market/workers?page=1{last_id}&limit=20{min_price}{max_price}")
         if response.status in range(200, 300):
             worker_data = (await response.json()).get('data', [])
             return worker_data
@@ -332,15 +336,23 @@ class Tapper:
             raise Unauthorized('Session expired')
 
     async def buy_workers(self, http_client: CloudflareScraper):
-        while True:
-            worker_data = await self.get_workers_market_data(http_client)
+        min_price = 1000 + randint(0, 100) * 10
+        max_price = choice([0, settings.WORKER_MAX_PRICE])
+        last_id = 0
+        for i in range(randint(0, settings.ATTEMPTS_TO_BUY_WORKER)):
+            await asyncio.sleep(uniform(1, 3))
+            worker_data = await self.get_workers_market_data(http_client,
+                                                             last_id=last_id, min_price=min_price, max_price=max_price)
+            last_id = worker_data[-1].get('id', 0)
             for worker in worker_data:
                 if worker.get('isProtected'):
                     continue
                 elif worker.get('isProtected') is False:
                     if await self.hire_worker(http_client, worker['id']):
                         self.workers += 1
-                        logger.success(self.log_message(f"Successfully hired new worker: {sanitize_string(worker['nickname'])}"))
+                        logger.success(self.log_message(
+                            f"Successfully hired new worker: <lc>{sanitize_string(worker['nickname'])}</lc> "
+                            f"for <lc>{worker.get('price')}</lc>"))
                         await self.get_scores(http_client)
                         return
 
@@ -367,7 +379,7 @@ class Tapper:
             return False
 
     async def run(self) -> None:
-        random_delay = uniform(1, settings.RANDOM_SESSION_START_DELAY)
+        random_delay = uniform(1, settings.SESSION_START_DELAY)
         logger.info(self.log_message(f"Bot will start in <lr>{int(random_delay)}s</lr>"))
         await asyncio.sleep(delay=random_delay)
 
@@ -445,7 +457,7 @@ class Tapper:
                         if factory_info:
                             self.workers = factory_info.get('totalWorkersCount')
                             if settings.AUTO_BUY_WORKER:
-                                while self.workers < workplaces.get('quantity', 100) and balance > 1000:
+                                while self.workers < workplaces.get('quantity', 100) and balance > settings.WORKER_MAX_PRICE:
                                     await self.buy_workers(http_client)
                                     balance = (await self.get_user_info(http_client)).get('score', {}).get('balance', 0)
                                     logger.info(self.log_message(f"Balance: <lc>{balance}</lc>"))
@@ -470,7 +482,7 @@ class Tapper:
                         workplaces = tools_info.get('Workplace')
                         if workplaces.get('quantity', 100) < workplaces.get('limit', 20) and \
                                 balance > workplaces.get('price'):
-                            await self.buy_workplace(http_client)
+                            await self.buy_tool(http_client, tool_id=5)
 
                     boost_available = 0
                     if settings.AUTO_TAP:
