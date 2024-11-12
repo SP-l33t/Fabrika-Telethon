@@ -354,7 +354,8 @@ class Tapper:
                             f"Successfully hired new worker: <lc>{sanitize_string(worker['nickname'])}</lc> "
                             f"for <lc>{worker.get('price')}</lc>"))
                         await self.get_scores(http_client)
-                        return
+                        return True
+        return False
 
     async def collect_reward(self, http_client: CloudflareScraper, value):
         response = await http_client.post(f"{API_ENDPOINT}/factories/my/rewards/collection")
@@ -458,7 +459,8 @@ class Tapper:
                             self.workers = factory_info.get('totalWorkersCount')
                             if settings.AUTO_BUY_WORKER:
                                 while self.workers < workplaces.get('quantity', 100) and balance > settings.WORKER_MAX_PRICE:
-                                    await self.buy_workers(http_client)
+                                    if not await self.buy_workers(http_client):
+                                        break
                                     balance = (await self.get_user_info(http_client)).get('score', {}).get('balance', 0)
                                     logger.info(self.log_message(f"Balance: <lc>{balance}</lc>"))
                                     factory_info = await self.get_factory_info(http_client)
