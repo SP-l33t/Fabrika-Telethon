@@ -343,6 +343,12 @@ class Tapper:
             await asyncio.sleep(uniform(1, 3))
             worker_data = await self.get_workers_market_data(http_client,
                                                              last_id=last_id, min_price=min_price, max_price=max_price)
+            if not worker_data:
+                min_price = 1000 + randint(0, 100) * 10
+                max_price = choice([0, settings.WORKER_MAX_PRICE])
+                last_id = 0
+                continue
+
             last_id = worker_data[-1].get('id', 0)
             for worker in worker_data:
                 if worker.get('isProtected'):
@@ -471,7 +477,7 @@ class Tapper:
                             workers_status = await self.get_workers_status(http_client)
                             shuffle(workers_status)
                             current_hour = datetime.utcnow().hour
-                            work_time = "longest" if (current_hour >= 23 or current_hour < 7) else "fastest"
+                            work_time = "longest" if (current_hour >= randint(20, 24) or current_hour < 5) else "fastest"
                             for worker in workers_status:
                                 if not worker.get('task'):
                                     if await self.send_workers_to_work(http_client, work_time):
